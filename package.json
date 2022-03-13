@@ -1,0 +1,8 @@
+{
+  "name": "ElectroCarAdmin",
+  "version": "1.0.0",
+  "description": "Admin panel",
+  "main": "index.js",
+  "author": "Ivan Milovanov <tequila00@yandex.ru>",
+  "license": "MIT"
+}
