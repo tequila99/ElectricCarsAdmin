@@ -1,8 +1,27 @@
 {
-  "name": "ElectroCarAdmin",
+  "name": "electro-cars-admin",
   "version": "1.0.0",
   "description": "Admin panel",
   "main": "index.js",
   "author": "Ivan Milovanov <tequila00@yandex.ru>",
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test:back": "tap -R specy"
+  },
+  "devDependencies": {
+    "dotenv": "^16.0.0",
+    "eslint": "^8.11.0",
+    "eslint-config-standard": "^16.0.3",
+    "eslint-plugin-import": "^2.25.4",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.0.0",
+    "nodemon": "^2.0.15",
+    "tap": "^16.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "pg": "^8.7.3",
+    "uuid": "^8.3.2"
+  }
 }
