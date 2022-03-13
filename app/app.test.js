@@ -1,10 +1,10 @@
-import 'dotenv/config'
-import fs from 'fs'
-import path from 'path'
-import pg from 'pg'
-import bcrypt from 'bcryptjs'
-import { test } from 'tap'
-import { validate, version } from 'uuid'
+require('dotenv').config()
+const fs = require('fs')
+const path = require('path')
+const { Pool } = require('pg')
+const { hash } = require('bcryptjs')
+const { test } = require('tap')
+const { validate } = require('uuid')
 
 const TEST_PASSWORD = 'password'
 const SALT = process.env.SALT || 10
@@ -12,17 +12,26 @@ const SALT = process.env.SALT || 10
 const DB_PATH = 'db/'
 
 // пути к скриптам инициализации базы данных
-const CREATE_USER_DB = fs.readFileSync(path.join(DB_PATH, 'createDb.sql'), 'utf8')
-const CREATE_SCHEMA_DB = fs.readFileSync(path.join(DB_PATH, 'createSchema.sql'), 'utf8')
-const CREATE_FUNCTION = fs.readFileSync(path.join(DB_PATH, 'createFunctions.sql'), 'utf8')
+const CREATE_USER_DB = fs.readFileSync(
+  path.join(DB_PATH, 'createDb.sql'),
+  'utf8'
+)
+const CREATE_SCHEMA_DB = fs.readFileSync(
+  path.join(DB_PATH, 'createSchema.sql'),
+  'utf8'
+)
+const CREATE_FUNCTION = fs.readFileSync(
+  path.join(DB_PATH, 'createFunctions.sql'),
+  'utf8'
+)
 
 // путь к скрипту создания таблицы пользователей
-const CREATE_USER = fs.readFileSync(path.join(DB_PATH, 'auth/createUser.sql'), 'utf8')
+const CREATE_USER = fs.readFileSync(
+  path.join(DB_PATH, 'auth/createUser.sql'),
+  'utf8'
+)
 
-const { Pool } = pg
-const { hash } = bcrypt
-
-test('Проверка создания базы данных', async t => {
+test('Проверка создания базы данных', async (t) => {
   let pool
   t.before(() => {
     pool = new Pool({
@@ -38,26 +47,30 @@ test('Проверка создания базы данных', async t => {
     pool.end()
   })
 
-  t.test('удаление старой версии БД при наличии', async t => {
+  t.test('удаление старой версии БД при наличии', async (t) => {
     const result = await pool.query('DROP DATABASE IF EXISTS electrocar;')
     t.has(result, { rowCount: null, rows: [] }, 'выполнено успешно')
   })
 
-  t.test('создание новой версии базы данных', async t => {
+  t.test('создание новой версии базы данных', async (t) => {
     const result = await pool.query('CREATE DATABASE electrocar')
     t.has(result, { rowCount: null, rows: [] }, 'выполнено успешно')
   })
 
-  t.test('создание пользователя БД', async t => {
+  t.test('создание пользователя БД', async (t) => {
     const result = await pool.query(CREATE_USER_DB)
     t.equal(result.length, 3, 'все команды выполнены')
     t.has(result[0], { rowCount: null, rows: [] }, 'изменен временной пояс')
-    t.has(result[1], { rowCount: null, rows: [] }, 'очищена информация о пользователе')
+    t.has(
+      result[1],
+      { rowCount: null, rows: [] },
+      'очищена информация о пользователе'
+    )
     t.has(result[2], { rowCount: null, rows: [] }, 'создан новый пользователь')
   })
 })
 
-test('Создание расширения и схемы', async t => {
+test('Создание расширения и схемы', async (t) => {
   let pool
 
   t.before(() => {
@@ -74,7 +87,7 @@ test('Создание расширения и схемы', async t => {
     pool.end()
   })
 
-  t.test('проверка создания расширений и схемы', async t => {
+  t.test('проверка создания расширений и схемы', async (t) => {
     const result = await pool.query(CREATE_SCHEMA_DB)
     t.equal(result.length, 2, 'все команды выполнены')
     t.has(result[0], { rowCount: null, rows: [] }, 'создано расширение')
@@ -82,7 +95,7 @@ test('Создание расширения и схемы', async t => {
   })
 })
 
-test('проверка создания пользовательских функций', async t => {
+test('проверка создания пользовательских функций', async (t) => {
   let pool
 
   t.before(() => {
@@ -99,13 +112,13 @@ test('проверка создания пользовательских фун�
     pool.end()
   })
 
-  t.test('создание функций', async t => {
+  t.test('создание функций', async (t) => {
     const result = await pool.query(CREATE_FUNCTION)
     t.equal(result.length, 10, 'все функции созданы')
   })
 })
 
-test('проверка создания справочников', t => {
+test('проверка создания справочников', (t) => {
   let pool
 
   t.before(() => {
@@ -122,54 +135,89 @@ test('проверка создания справочников', t => {
     pool.end()
   })
 
-  t.test('создание справочника пользователей', async t => {
+  t.test('создание справочника пользователей', async (t) => {
     const result = await pool.query(CREATE_USER)
     t.equal(result.length, 35, 'справочник пользователей создан')
   })
 
-  t.test('добавление и удаление пользователя с правами администратора', async t => {
-    const pass = await hash(TEST_PASSWORD, SALT)
-    const { rowCount, rows } = await pool.query(`
+  t.test(
+    'добавление и удаление пользователя с правами администратора',
+    async (t) => {
+      const pass = await hash(TEST_PASSWORD, SALT)
+      const { rowCount, rows } = await pool.query(
+        `
 INSERT INTO auth_user (name, full_name, caption, password, user_role)    
 VALUES( 'Admin', $1::jsonb, 'Встроенная учетная запись администратора', $2, 'admin')
 RETURNING id, active, deleted;
     `,
-    [
-      JSON.stringify({ lastName: 'Встроенная учетная запись администратора', firstName: '', middleName: '' }), pass
-    ])
-    t.equal(rowCount, 1, 'запись добавлена')
-    t.equal(validate(rows[0].id), true, 'код нового пользователя является валидным UUID')
-    t.equal(rows[0].active, true, 'пользователь по умолчанию активен')
-    t.equal(rows[0].deleted, false, 'пользователь по умолчанию не помечен на удаление')
-    t.end()
-  })
+        [
+          JSON.stringify({
+            lastName: 'Встроенная учетная запись администратора',
+            firstName: '',
+            middleName: ''
+          }),
+          pass
+        ]
+      )
+      t.equal(rowCount, 1, 'запись добавлена')
+      t.equal(
+        validate(rows[0].id),
+        true,
+        'код нового пользователя является валидным UUID'
+      )
+      t.equal(rows[0].active, true, 'пользователь по умолчанию активен')
+      t.equal(
+        rows[0].deleted,
+        false,
+        'пользователь по умолчанию не помечен на удаление'
+      )
+      t.end()
+    }
+  )
 
-  t.test('добавление и удаление пользователя с правами администратора', async t => {
-    const pass = await hash(TEST_PASSWORD, SALT)
-    const { rows } = await pool.query(`
+  t.test(
+    'добавление и удаление пользователя с правами администратора',
+    async (t) => {
+      const pass = await hash(TEST_PASSWORD, SALT)
+      const { rows } = await pool.query(
+        `
 INSERT INTO auth_user (name, full_name, caption, password, user_role)    
 VALUES( 'Admin-deleted', $1::jsonb, 'Встроенная учетная запись администратора', $2, 'admin')
 RETURNING id, active, deleted;
     `,
-    [
-      JSON.stringify({ lastName: 'Встроенная учетная запись администратора', firstName: '', middleName: '' }), pass
-    ])
-    const userId = rows[0].id
+        [
+          JSON.stringify({
+            lastName: 'Встроенная учетная запись администратора',
+            firstName: '',
+            middleName: ''
+          }),
+          pass
+        ]
+      )
+      const userId = rows[0].id
 
-    await pool.query(`
+      await pool.query(
+        `
 DELETE FROM  auth_user WHERE id = $1;
     `,
-    [
-      userId
-    ])
-    const { rowCount, rows: rowsDelete } = await pool.query(`
+        [userId]
+      )
+      const { rowCount, rows: rowsDelete } = await pool.query(
+        `
 SELECT active, deleted  FROM auth_user WHERE id = $1    
-    `, [userId])
-    t.equal(rowCount, 1, 'запись сохранена в базе')
-    t.equal(rowsDelete[0].active, false, 'удаленный пользователь неактивен')
-    t.equal(rowsDelete[0].deleted, true, 'удаленный пользователь помечен на удаление')
-    t.end()
-  })
+    `,
+        [userId]
+      )
+      t.equal(rowCount, 1, 'запись сохранена в базе')
+      t.equal(rowsDelete[0].active, false, 'удаленный пользователь неактивен')
+      t.equal(
+        rowsDelete[0].deleted,
+        true,
+        'удаленный пользователь помечен на удаление'
+      )
+      t.end()
+    }
+  )
 
   t.end()
 })
