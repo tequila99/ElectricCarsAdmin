@@ -6,7 +6,7 @@ COMMENT ON TYPE user_roles IS 'Роли доступа пользователе�
 DROP TABLE IF EXISTS auth_user CASCADE;
 
 CREATE TABLE auth_user (
-  id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name      varchar(50) NOT NULL,
   full_name jsonb,
   caption   text,
@@ -31,7 +31,7 @@ CREATE TABLE auth_user (
 ); 
 
 COMMENT ON TABLE  auth_user                  IS 'Таблица для хранения учетных данных пользователей';
-COMMENT ON COLUMN auth_user.id               IS 'Уникальный ключ (id) для пользователя в формате UUID';
+COMMENT ON COLUMN auth_user.user_id          IS 'Уникальный ключ (id) для пользователя в формате UUID';
 COMMENT ON COLUMN auth_user.name             IS 'Имя пользователя (логин)';
 COMMENT ON COLUMN auth_user.full_name        IS 'ФИО пользователя в формате JSON';
 COMMENT ON COLUMN auth_user.caption          IS 'Представление (описание) пользователя';
@@ -63,7 +63,7 @@ COMMENT ON INDEX auth_user_mobile_phone_btree_idx IS 'Индекс для пои
 
 CREATE OR REPLACE RULE auth_user_delete_rule AS
         ON DELETE TO auth_user
-        DO INSTEAD (UPDATE auth_user SET active = false, deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = old.id);
+        DO INSTEAD (UPDATE auth_user SET active = false, deleted = true, deleted_at = now() WHERE user_id = old.user_id);
 COMMENT ON RULE auth_user_delete_rule ON auth_user IS 'Правило которое вместо удаление записи о пользователе помечает его удаленным и неактивным';
 
 

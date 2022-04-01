@@ -4,7 +4,8 @@ const path = require('path')
 const { Pool } = require('pg')
 const { hash } = require('bcryptjs')
 const { test } = require('tap')
-const { validate } = require('uuid')
+const { v4, validate } = require('uuid')
+const { intervalToDuration } = require('date-fns')
 
 const TEST_PASSWORD = 'password'
 const SALT = process.env.SALT || 10
@@ -12,7 +13,7 @@ const SALT = process.env.SALT || 10
 const DB_PATH = 'db/'
 
 // пути к скриптам инициализации базы данных
-const CREATE_USER_DB = fs.readFileSync(
+const CREATE_DB = fs.readFileSync(
   path.join(DB_PATH, 'createDb.sql'),
   'utf8'
 )
@@ -29,6 +30,11 @@ const CREATE_FUNCTION = fs.readFileSync(
 const CREATE_USER = fs.readFileSync(
   path.join(DB_PATH, 'auth/createUser.sql'),
   'utf8'
+)
+
+const CREATE_SESSION = fs.readFileSync(
+  path.join(DB_PATH, 'auth/createSession.sql'),
+  'utf-8'
 )
 
 test('Проверка создания базы данных', async (t) => {
@@ -58,7 +64,7 @@ test('Проверка создания базы данных', async (t) => {
   })
 
   t.test('создание пользователя БД', async (t) => {
-    const result = await pool.query(CREATE_USER_DB)
+    const result = await pool.query(CREATE_DB)
     t.equal(result.length, 3, 'все команды выполнены')
     t.has(result[0], { rowCount: null, rows: [] }, 'изменен временной пояс')
     t.has(
@@ -118,7 +124,7 @@ test('проверка создания пользовательских фун�
   })
 })
 
-test('проверка создания справочников', (t) => {
+test('проверка функционала справочника пользователей', (t) => {
   let pool
 
   t.before(() => {
@@ -141,14 +147,14 @@ test('проверка создания справочников', (t) => {
   })
 
   t.test(
-    'добавление и удаление пользователя с правами администратора',
+    'добавление пользователя с правами администратора',
     async (t) => {
       const pass = await hash(TEST_PASSWORD, SALT)
       const { rowCount, rows } = await pool.query(
         `
 INSERT INTO auth_user (name, full_name, caption, password, user_role)    
 VALUES( 'Admin', $1::jsonb, 'Встроенная учетная запись администратора', $2, 'admin')
-RETURNING id, active, deleted;
+RETURNING user_id, active, deleted;
     `,
         [
           JSON.stringify({
@@ -161,7 +167,7 @@ RETURNING id, active, deleted;
       )
       t.equal(rowCount, 1, 'запись добавлена')
       t.equal(
-        validate(rows[0].id),
+        validate(rows[0].user_id),
         true,
         'код нового пользователя является валидным UUID'
       )
@@ -176,14 +182,14 @@ RETURNING id, active, deleted;
   )
 
   t.test(
-    'добавление и удаление пользователя с правами администратора',
+    'добавление и удаление еще одного пользователя с правами администратора',
     async (t) => {
       const pass = await hash(TEST_PASSWORD, SALT)
       const { rows } = await pool.query(
         `
 INSERT INTO auth_user (name, full_name, caption, password, user_role)    
 VALUES( 'Admin-deleted', $1::jsonb, 'Встроенная учетная запись администратора', $2, 'admin')
-RETURNING id, active, deleted;
+RETURNING user_id, active, deleted;
     `,
         [
           JSON.stringify({
@@ -194,17 +200,17 @@ RETURNING id, active, deleted;
           pass
         ]
       )
-      const userId = rows[0].id
+      const userId = rows[0].user_id
 
       await pool.query(
         `
-DELETE FROM  auth_user WHERE id = $1;
+DELETE FROM  auth_user WHERE user_id = $1;
     `,
         [userId]
       )
       const { rowCount, rows: rowsDelete } = await pool.query(
         `
-SELECT active, deleted  FROM auth_user WHERE id = $1    
+SELECT active, deleted  FROM auth_user WHERE user_id = $1    
     `,
         [userId]
       )
@@ -219,5 +225,50 @@ SELECT active, deleted  FROM auth_user WHERE id = $1
     }
   )
 
+  t.end()
+})
+
+test('проверка функционала справочника сессий', async t => {
+  let pool
+  t.before(() => {
+    pool = new Pool({
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      database: 'electrocar',
+      user: 'electrocar',
+      password: 'electrocar'
+    })
+  })
+
+  t.teardown(() => {
+    pool.end()
+  })
+
+  t.test('создание справочника сессий', async t => {
+    const result = await pool.query(CREATE_SESSION)
+    t.equal(result.length, 13, 'справочник сессий создан')
+    t.end()
+  })
+
+  t.test('добавление сессии пользователя', async t => {
+    const userId = v4()
+    const { rowCount, rows } = await pool.query(`
+INSERT INTO auth_session(user_id, payload) VALUES($1, $2) RETURNING session_id, login_dts, valid_dts
+    `,
+    [
+      userId,
+      { userId, userName: 'user', userRole: 'admin' }
+    ])
+    t.equal(rowCount, 1, 'запись успешно добавлена')
+    t.equal(validate(rows[0].session_id), true, 'код сессии является корректным UUID')
+    t.type(rows[0].login_dts, Date, 'информация о времени создания сессии является корректной')
+    t.type(rows[0].valid_dts, Date, 'информация о времени жизни сессии является корректной')
+    const lifeType = intervalToDuration({
+      start: rows[0].login_dts,
+      end: rows[0].valid_dts
+    })
+    t.has(lifeType, { years: 0, months: 0, days: 0, hours: 1, minutes: 0 }, 'время жизни сессии соответствует 1 часу')
+    t.end()
+  })
   t.end()
 })

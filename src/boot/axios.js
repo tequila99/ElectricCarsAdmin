@@ -1,24 +1,38 @@
 import { boot } from 'quasar/wrappers'
-import axios from 'axios'
+import Api from 'src/helpers/Api'
+import Logger from 'src/helpers/Logger'
+import Storage from 'src/helpers/Storage'
+const logger = new Logger()
+const api = new Api(new Logger(), new Storage())
 
-// Be careful when using SSR for cross-request state pollution
-// due to creating a Singleton instance here;
-// If any client changes this (global) instance, it might be a
-// good idea to move this instance creation inside of the
-// "export default () => {}" function below (which runs individually
-// for each client)
-const api = axios.create({ baseURL: 'https://api.example.com' })
-
-export default boot(({ app }) => {
-  // for use inside Vue files (Options API) through this.$axios and this.$api
-
-  app.config.globalProperties.$axios = axios
-  // ^ ^ ^ this will allow you to use this.$axios (for Vue Options API form)
-  //       so you won't necessarily have to import axios in each vue file
-
-  app.config.globalProperties.$api = api
-  // ^ ^ ^ this will allow you to use this.$api (for Vue Options API form)
-  //       so you can easily perform requests against your app's API
+export default boot(({ router }) => {
+  api.client.interceptors.response.use(
+    r => r,
+    async error => {
+      console.log(111111111111111)
+      logger.debug('Попытка обновить токен авторизации')
+      if (error.response.status !== 401) throw error
+      // if (error.response.status === 401 && !error.config.retry) {
+      //   if (['Token expired', 'Invalid token'].includes(error.response?.data?.message)) {
+      //     logger.debug('Попытка обновить токен авторизации')
+      //     const { data } = await api.client.post('/api/v1/auth/refresh', {
+      //       refreshToken: api.refreshToken
+      //     })
+      //     api.setToken(data)
+      //     const newRequest = {
+      //       ...error.config,
+      //       retry: true
+      //     }
+      //     return api.client(newRequest)
+      //   }
+      //   if (['Access forbidden'].includes(error.response?.data?.message)) {
+      //     logger.error('Ошибка авторизации. Необходим повторный воход в систему', 'Войдите в систему заново')
+      //     router.push({ path: '/login' })
+      //   }
+      // }
+      // throw error
+    }
+  )
+  // console.log(api.client.interceptors.response)
+  logger.info('Начальная загрузка модуля axios')
 })
-
-export { api }
